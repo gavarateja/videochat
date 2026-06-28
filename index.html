@@ -3,13 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Connect - Random Video Chat</title>
-    <link rel="stylesheet" href="style.css">
-
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-
+    <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 </head>
 
 <body>
@@ -27,13 +25,8 @@
         </header>
 
         <main id="view-home" class="view active">
-            <div class="hero">
+            <div class="hero fade-in">
                 <h2>Meet the world, instantly.</h2>
-                <p>Join thousands of users in random 1-on-1 video chats.</p>
-                <div class="reviews">
-                    <p>⭐ "Best way to meet new people!" - Alex</p>
-                    <p>⭐ "The filters make finding friends so easy." - Sarah</p>
-                </div>
                 <button id="btn-start-app" class="action-btn pulse-btn">Start Video Chat</button>
             </div>
         </main>
@@ -41,11 +34,7 @@
         <main id="view-auth-choice" class="view hidden">
             <div class="card fade-in">
                 <h2>Choose how to connect</h2>
-                <button id="btn-show-login" class="action-btn">Login / Sign Up</button>
-                <div class="divider"><span>or</span></div>
-                <button id="btn-show-guest" class="action-btn secondary">Continue without Account</button>
-                <p class="warning"><i class="fas fa-info-circle"></i> Guests only match with other guests and cannot use
-                    filters.</p>
+                <button id="btn-show-guest" class="action-btn secondary">Continue as Guest</button>
             </div>
         </main>
 
@@ -54,7 +43,23 @@
                 <h2>Guest Details</h2>
                 <div class="input-group">
                     <i class="fas fa-user"></i>
-                    <input type="text" id="guest-name" placeholder="Unique Display Name" required autocomplete="off">
+                    <input type="text" id="guest-name" placeholder="Your Name" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-calendar"></i>
+                    <input type="date" id="guest-dob" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-globe"></i>
+                    <select id="guest-country" required>
+                        <option value="">Select Region</option>
+                        <option value="North America">North America</option>
+                        <option value="South America">South America</option>
+                        <option value="Europe">Europe</option>
+                        <option value="Asia">Asia</option>
+                        <option value="Africa">Africa</option>
+                        <option value="Oceania">Oceania</option>
+                    </select>
                 </div>
                 <div class="input-group">
                     <i class="fas fa-venus-mars"></i>
@@ -62,11 +67,8 @@
                         <option value="any">Select Gender</option>
                         <option value="male">Male</option>
                         <option value="female">Female</option>
+                        <option value="others">Other</option>
                     </select>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-globe"></i>
-                    <input type="text" id="guest-country" placeholder="Country" required autocomplete="off">
                 </div>
                 <button id="btn-start-guest" class="action-btn">Enter Chat <i class="fas fa-arrow-right"></i></button>
                 <p id="guest-error" class="error"></p>
@@ -74,48 +76,80 @@
         </main>
 
         <main id="view-chat" class="view hidden">
-            <div class="chat-header">
-                <div id="filter-container" class="hidden">
-                    <div class="input-group filter-group">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="chat-filter" placeholder="Keyword filter...">
+            <div class="chat-layout">
+                <div id="media-container" class="media-container">
+                    <div id="video-grid" class="video-grid">
+            
+                        <div class="video-box remote-box">
+                            <video id="remote-video" autoplay playsinline></video>
+                            <div class="status-overlay" id="remote-status">Searching for stranger...</div>
+                            <div class="media-disabled-overlay hidden" id="remote-cam-off">
+                                <i class="fas fa-video-slash"></i>
+                                <p>Stranger turned off camera</p>
+                            </div>
+                            <div class="mic-off-indicator hidden" id="remote-mic-off">
+                                <i class="fas fa-microphone-slash"></i>
+                            </div>
+                            <div class="user-info-badge hidden" id="remote-user-info"></div>
+                        </div>
+            
+                        <div id="local-box" class="video-box local-box">
+                            <video id="local-video" autoplay playsinline muted></video>
+                            <div class="media-disabled-overlay hidden" id="local-cam-off">
+                                <i class="fas fa-video-slash"></i>
+                                <p>Camera Off</p>
+                            </div>
+                            <div class="mic-off-indicator hidden" id="local-mic-off">
+                                <i class="fas fa-microphone-slash"></i>
+                            </div>
+                            <div class="user-info-badge hidden" id="local-user-info"></div>
+                        </div>
+            
+                        <div id="chat-panel" class="chat-panel hidden">
+                            <div class="chat-header">
+                                <h3>Conversation</h3>
+                                <button id="btn-close-chat" class="close-btn"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div id="chat-messages" class="chat-messages"></div>
+                            <div id="typing-indicator" class="typing-indicator hidden">Stranger is typing...</div>
+                            <div class="chat-input-area">
+                                <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                                <button id="btn-send-msg" disabled><i class="fas fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+            
                     </div>
-                    <button id="btn-apply-filter" class="action-btn small">Apply</button>
+                </div>
+
+                <div class="chat-controls">
+                    <button id="btn-leave" class="control-btn danger-btn" title="Leave Chat">
+                        <i class="fas fa-sign-out-alt"></i> <span>Stop</span>
+                    </button>
+
+                    <div class="hardware-controls">
+                        <button id="btn-mute" class="control-btn" title="Toggle Microphone">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="btn-camera" class="control-btn" title="Toggle Camera">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="btn-toggle-chat" class="control-btn" title="Open Text Chat">
+                            <i class="fas fa-comment"></i>
+                            <span id="chat-badge" class="chat-badge hidden"></span>
+                        </button>
+                    </div>
+
+                    <button id="btn-next" class="control-btn primary-btn next-btn">
+                        <i class="fas fa-step-forward"></i> <span>Next</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="main-content fade-in">
-                <div class="video-section">
-                    <div id="toast-container" class="toast-container"></div>
-
-                    <div class="video-wrapper remote-wrapper">
-                        <video id="remote-video" autoplay playsinline></video>
-                        <div class="status-overlay" id="remote-status">Initializing...</div>
-                        <div class="user-info-overlay hidden" id="remote-user-info"></div>
-                    </div>
-
-                    <div class="video-wrapper local-wrapper">
-                        <video id="local-video" autoplay playsinline muted></video>
-                        <div class="user-info-overlay hidden" id="local-user-info"></div>
-                    </div>
-
-                    <div class="controls">
-                        <button id="btn-mute" class="control-btn" title="Toggle Microphone"><i
-                                class="fas fa-microphone"></i></button>
-                        <button id="btn-camera" class="control-btn" title="Toggle Camera"><i
-                                class="fas fa-video"></i></button>
-                        <button id="btn-next" class="control-btn next"><i class="fas fa-step-forward"></i> Next</button>
-                        <button id="btn-report" class="control-btn warning-btn" title="Report User"><i
-                                class="fas fa-flag"></i></button>
-                        <button id="btn-leave" class="control-btn danger-btn" title="Leave Chat"><i
-                                class="fas fa-sign-out-alt"></i></button>
-                    </div>
-                </div>
-            </div>
+            <div id="toast-container" class="toast-container"></div>
         </main>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 
 </html>
