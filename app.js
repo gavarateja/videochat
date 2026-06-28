@@ -1,321 +1,181 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { 
-    getFirestore, doc, setDoc, getDoc, collection, query, 
-    where, limit, getDocs, deleteDoc, updateDoc, increment 
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { startChatProtocol } from './webrtc.js';
+import { checkBanStatus, submitAppealDB } from './firebase.js';
 
-// 1. FIREBASE CONFIGURATION
-const firebaseConfig = {
-    apiKey: "AIzaSyBxGfB8RckxPoEpPjKK2WX3CEpL9cRENYM",
-    authDomain: "video-chat-e9053.firebaseapp.com",
-    projectId: "video-chat-e9053",
-    storageBucket: "video-chat-e9053.firebasestorage.app",
-    messagingSenderId: "325616565557",
-    appId: "1:325616565557:web:764f9a6b083fdbcf60207c"
+const UI = {
+    dobInput: document.getElementById("guest-dob"),
+    errorEl: document.getElementById("guest-error"),
+    btnEnterChat: document.getElementById("btn-start-guest"),
+    loader: document.getElementById("global-loader"),
+    loaderText: document.getElementById("loader-text")
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const peer = new Peer(); 
+let userIp = 'unknown';
 
-// 2. STATE VARIABLES
-let currentUser = null; 
-let currentPartnerDbId = null; 
-let localStream, currentCall, currentDataConnection;
+// Fetch IP on load
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        userIp = data.ip;
+    } catch (e) { console.warn("IP fetch failed"); }
 
-peer.on('open', (id) => console.log("PeerJS Connected. ID:", id));
+    const savedData = localStorage.getItem('userData');
+    if (savedData) {
+        const data = JSON.parse(savedData);
+        document.getElementById('guest-name').value = data.name || '';
+        document.getElementById('guest-dob').value = data.dob || '';
+        document.getElementById('guest-country').value = data.country || '';
+        if (data.gender) {
+            const radio = document.querySelector(`input[name="guest-gender"][value="${data.gender}"]`);
+            if (radio) radio.checked = true;
+        }
+    }
+});
 
-// 3. UI HELPER FUNCTIONS
-function showView(viewId) {
-    document.querySelectorAll('.view').forEach(v => {
-        v.classList.remove('active');
-        v.classList.add('hidden');
+// Auto-format DOB
+UI.dobInput.addEventListener("input", function (e) {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length > 2 && value.length <= 4) {
+        value = value.slice(0, 2) + "/" + value.slice(2);
+    } else if (value.length > 4) {
+        value = value.slice(0, 2) + "/" + value.slice(2, 4) + "/" + value.slice(4, 8);
+    }
+    e.target.value = value;
+});
+
+function calculateAge(dobString) {
+    const parts = dobString.split('/');
+    if (parts.length !== 3) return -1;
+    const dob = new Date(parts[2], parts[1] - 1, parts[0]);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+    return age;
+}
+
+// Enter Chat & Ban Check
+UI.btnEnterChat.addEventListener('click', async () => {
+    const name = document.getElementById('guest-name').value.trim();
+    const dob = UI.dobInput.value;
+    const country = document.getElementById('guest-country').value.trim();
+    const tncChecked = document.getElementById('guest-tnc').checked;
+    const selectedGender = document.querySelector('input[name="guest-gender"]:checked');
+
+    if (!name || !dob || country === '' || !selectedGender) {
+        return UI.errorEl.innerText = "Please fill out all fields.";
+    }
+    const age = calculateAge(dob);
+    
+    if (age < 18) {
+        return UI.errorEl.innerText = "You must be at least 18 years old to use this app.";
+    }
+    if (age > 100 || age < 0) {
+        return UI.errorEl.innerText = "Please enter a valid, realistic Date of Birth.";
+    }
+    if (!tncChecked) {
+        return UI.errorEl.innerText = "You must agree to the Terms & Conditions.";
+    }
+
+    UI.errorEl.innerText = "";
+    showLoader("Connecting to network...");
+
+    const banStatus = await checkBanStatus(userIp);
+    
+    if (banStatus.isBanned) {
+        hideLoader();
+        const modal = document.getElementById('modal-banned');
+        const title = modal.querySelector('h2');
+        const desc = modal.querySelector('p');
+        const appealBtn = document.getElementById('btn-appeal-ban');
+        const appealInput = document.getElementById('appeal-reason');
+
+        // Dynamically style the UI based on appeal status
+        if (banStatus.hasAppealed) {
+            title.innerHTML = 'Appeal Pending';
+            desc.innerText = "Ban-Appeal sent, please be patient. We are reviewing your case.";
+            appealBtn.classList.add('hidden'); 
+            if (appealInput) appealInput.classList.add('hidden');
+        } else {
+            title.innerHTML = 'Access Blocked';
+            desc.innerText = "You have been permanently banned due to multiple reports of policy violations.";
+            appealBtn.classList.remove('hidden'); 
+            appealBtn.disabled = false;
+            appealBtn.innerText = "Submit Appeal Request";
+            if (appealInput) {
+                appealInput.classList.remove('hidden');
+                appealInput.value = ''; // Clear previous input
+            }
+        }
+        
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    const currentUser = {
+        id: `user_${Math.floor(Math.random() * 1000000)}`,
+        name, dob, age, country, 
+        gender: selectedGender.value,
+        ip: userIp
+    };
+
+    localStorage.setItem('userData', JSON.stringify({ name, dob, country, gender: selectedGender.value }));
+
+    showLoader("Accessing Camera & Microphone...");
+    await startChatProtocol(currentUser);
+});
+
+// Appeal Unban Logic with Reason Validation
+document.getElementById('btn-appeal-ban').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-appeal-ban');
+    const modal = document.getElementById('modal-banned');
+    const appealInput = document.getElementById('appeal-reason');
+    
+    const reason = appealInput ? appealInput.value.trim() : "";
+    
+    if (appealInput && !reason) {
+        return alert("Please provide a reason for your appeal before submitting.");
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Submitting...";
+    
+    await submitAppealDB(userIp, reason);
+    
+    // Instantly transform the modal UI to the pending state
+    modal.querySelector('h2').innerHTML = 'Appeal Pending';
+    modal.querySelector('p').innerText = "Appeal sent, please be patient. We are reviewing your case.";
+    btn.classList.add('hidden');
+    if (appealInput) appealInput.classList.add('hidden');
+    
+    showToast("Your appeal has been submitted for review.", "info");
+});
+
+export function showLoader(text) { 
+    UI.loaderText.innerText = text; 
+    UI.loader.classList.remove('hidden'); 
+}
+export function hideLoader() { 
+    UI.loader.classList.add('hidden'); 
+}
+export function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => { 
+        v.classList.remove('active'); 
+        v.classList.add('hidden'); 
     });
     const target = document.getElementById(viewId);
-    target.classList.remove('hidden');
-    target.classList.add('active');
+    if(target) {
+        target.classList.remove('hidden');
+        target.classList.add('active');
+    }
 }
-
-function getGenderIcon(gender) {
-    if (gender === 'male') return '<i class="fas fa-mars gender-male"></i>';
-    if (gender === 'female') return '<i class="fas fa-venus gender-female"></i>';
-    return '<i class="fas fa-genderless gender-any"></i>';
-}
-
-function showLoader(message = "Loading...") {
-    document.getElementById('loader-text').innerText = message;
-    document.getElementById('global-loader').classList.remove('hidden');
-}
-
-function hideLoader() {
-    document.getElementById('global-loader').classList.add('hidden');
-}
-
-function showToast(message, type = 'info') {
+export function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = message; // allows icons if needed
+    toast.innerText = message;
     container.appendChild(toast);
-    
-    setTimeout(() => { if(container.contains(toast)) container.removeChild(toast); }, 3900);
+    setTimeout(() => { toast.remove(); }, 3300);
 }
-
-// 4. NAVIGATION LISTENERS
-document.getElementById('btn-start-app').addEventListener('click', () => showView('view-auth-choice'));
-document.getElementById('btn-show-guest').addEventListener('click', () => showView('view-guest'));
-
-// 5. GUEST LOGIN & INITIALIZATION
-document.getElementById('btn-start-guest').addEventListener('click', async () => {
-    const name = document.getElementById('guest-name').value.trim();
-    const gender = document.getElementById('guest-gender').value;
-    const country = document.getElementById('guest-country').value.trim();
-    const errorEl = document.getElementById('guest-error');
-
-    if(!name || !country || gender === 'any') {
-        return errorEl.innerText = "Please fill all fields accurately.";
-    }
-
-    showLoader("Creating guest profile & accessing camera...");
-    errorEl.innerText = "";
-
-    try {
-        // Validate uniqueness in DB
-        const docRef = doc(db, "public_users", name);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            hideLoader();
-            if(docSnap.data().blocked) return errorEl.innerText = "This account is blocked due to reports.";
-            return errorEl.innerText = "Name already taken. Choose another.";
-        }
-
-        // 1. Hardware access first (if it fails, don't write to DB)
-        await startCamera();
-
-        // 2. Save user
-        currentUser = {
-            mode: 'guest',
-            id: name,
-            name: name,
-            gender: gender,
-            country: country,
-            peerId: peer.id,
-            reports: 0,
-            blocked: false,
-            loginTime: new Date().toISOString()
-        };
-        await setDoc(docRef, currentUser);
-        
-        // 3. Update UI
-        document.getElementById('header-name').innerText = `Logged in as: ${name}`;
-        document.getElementById('header-user-info').classList.remove('hidden');
-        document.getElementById('filter-container').style.display = 'none'; 
-        
-        const localInfo = document.getElementById('local-user-info');
-        localInfo.innerHTML = `${name} ${getGenderIcon(gender)} | ${country}`;
-        localInfo.classList.remove('hidden');
-
-        hideLoader();
-        showView('view-chat');
-        findMatch();
-
-    } catch (error) {
-        hideLoader();
-        console.error(error);
-        if(error.name === "NotAllowedError") errorEl.innerText = "Camera/Microphone access denied.";
-        else errorEl.innerText = "Database connection error occurred.";
-    }
-});
-
-async function startCamera() {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    document.getElementById('local-video').srcObject = localStream;
-}
-
-// 6. MATCHMAKING QUEUE LOGIC
-async function findMatch() {
-    const status = document.getElementById('remote-status');
-    const remoteInfo = document.getElementById('remote-user-info');
-    
-    status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching for a partner...';
-    status.style.display = 'block';
-    remoteInfo.classList.add('hidden');
-    document.getElementById('remote-video').srcObject = null;
-    
-    if (currentCall) currentCall.close();
-    if (currentDataConnection) currentDataConnection.close();
-
-    const queueName = currentUser.mode === 'guest' ? 'public_queue' : 'private_queue';
-    const queueRef = collection(db, queueName);
-
-    try {
-        const q = query(queueRef, where("id", "!=", currentUser.id), limit(1));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            // MATCH FOUND!
-            const partnerData = querySnapshot.docs[0].data();
-            const partnerDocId = querySnapshot.docs[0].id;
-
-            await deleteDoc(doc(db, queueName, partnerDocId));
-
-            status.innerHTML = "Connecting...";
-            currentPartnerDbId = partnerData.id; 
-            
-            remoteInfo.innerHTML = `${partnerData.id} ${getGenderIcon(partnerData.gender)} | ${partnerData.country}`;
-            remoteInfo.classList.remove('hidden');
-            
-            // WebRTC Call & Data Setup
-            const call = peer.call(partnerData.peerId, localStream);
-            const conn = peer.connect(partnerData.peerId);
-            handleCall(call);
-            handleDataConnection(conn);
-
-        } else {
-            // NO MATCH - Inform user and wait
-            status.innerHTML = "No users available right now.<br><span style='font-size:0.85rem; color:#94a3b8;'>Please wait or try again later.</span>";
-            showToast("Waiting room joined. You will connect automatically when someone arrives.", "info");
-            
-            await setDoc(doc(db, queueName, currentUser.id), {
-                id: currentUser.id,
-                peerId: peer.id,
-                gender: currentUser.gender, 
-                country: currentUser.country,
-                filter: "" 
-            });
-        }
-    } catch (e) {
-        console.error("Matchmaking error", e);
-        status.innerText = "Error finding match. Try again.";
-    }
-}
-
-// 7. HANDLING INCOMING CALLS & DATA
-peer.on('call', async (call) => {
-    const queueName = currentUser.mode === 'guest' ? 'public_queue' : 'private_queue';
-    await deleteDoc(doc(db, queueName, currentUser.id));
-
-    const collectionName = currentUser.mode === 'guest' ? 'public_users' : 'users';
-    const q = query(collection(db, collectionName), where("peerId", "==", call.peer));
-    const snap = await getDocs(q);
-    
-    if(!snap.empty) {
-        const callerData = snap.docs[0].data();
-        currentPartnerDbId = callerData.id;
-        
-        const remoteInfo = document.getElementById('remote-user-info');
-        remoteInfo.innerHTML = `${callerData.name || callerData.id} ${getGenderIcon(callerData.gender)} | ${callerData.country}`;
-        remoteInfo.classList.remove('hidden');
-        showToast("Connected to a new stranger!", "success");
-    }
-
-    call.answer(localStream);
-    handleCall(call);
-});
-
-peer.on('connection', (conn) => {
-    handleDataConnection(conn);
-});
-
-function handleCall(call) {
-    currentCall = call;
-    call.on('stream', (remoteStream) => {
-        document.getElementById('remote-video').srcObject = remoteStream;
-        document.getElementById('remote-status').style.display = 'none';
-    });
-
-    call.on('close', () => {
-        document.getElementById('remote-video').srcObject = null;
-        document.getElementById('remote-status').innerText = "Stranger disconnected.";
-        document.getElementById('remote-status').style.display = 'block';
-        document.getElementById('remote-user-info').classList.add('hidden');
-        currentPartnerDbId = null;
-    });
-}
-
-function handleDataConnection(conn) {
-    currentDataConnection = conn;
-    conn.on('data', (data) => {
-        if(data.type === 'audio') {
-            showToast(data.isEnabled ? "Stranger unmuted their mic." : "Stranger muted their mic.", "warning");
-        }
-        else if(data.type === 'video') {
-            showToast(data.isEnabled ? "Stranger turned their camera back on." : "Stranger turned off their camera.", "warning");
-        }
-        else if(data.type === 'reported') {
-            showToast("You have been reported. Disconnecting...", "danger");
-        }
-    });
-}
-
-// 8. IN-CHAT CONTROLS
-document.getElementById('btn-next').addEventListener('click', findMatch);
-
-document.getElementById('btn-leave').addEventListener('click', async () => {
-    showLoader("Leaving chat...");
-    if (currentCall) currentCall.close();
-    if (currentDataConnection) currentDataConnection.close();
-    
-    const queueName = currentUser.mode === 'guest' ? 'public_queue' : 'private_queue';
-    await deleteDoc(doc(db, queueName, currentUser.id));
-    
-    document.getElementById('remote-video').srcObject = null;
-    document.getElementById('remote-user-info').classList.add('hidden');
-    
-    setTimeout(() => {
-        hideLoader();
-        showView('view-home');
-    }, 800);
-});
-
-// Hardware Toggles with Real-time Signaling
-let isMuted = false, isVideoOff = false;
-
-document.getElementById('btn-mute').addEventListener('click', (e) => {
-    isMuted = !isMuted;
-    localStream.getAudioTracks()[0].enabled = !isMuted;
-    e.currentTarget.classList.toggle('muted');
-    e.currentTarget.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
-    
-    if(currentDataConnection?.open) currentDataConnection.send({ type: 'audio', isEnabled: !isMuted });
-});
-
-document.getElementById('btn-camera').addEventListener('click', (e) => {
-    isVideoOff = !isVideoOff;
-    localStream.getVideoTracks()[0].enabled = !isVideoOff;
-    e.currentTarget.classList.toggle('muted');
-    e.currentTarget.innerHTML = isVideoOff ? '<i class="fas fa-video-slash"></i>' : '<i class="fas fa-video"></i>';
-    
-    if(currentDataConnection?.open) currentDataConnection.send({ type: 'video', isEnabled: !isVideoOff });
-});
-
-// Reporting Logic
-document.getElementById('btn-report').addEventListener('click', async () => {
-    if (!currentPartnerDbId) return showToast("No one is connected to report.", "warning");
-    
-    showLoader("Submitting report...");
-    const collectionName = currentUser.mode === 'guest' ? 'public_users' : 'users';
-    const reportLimit = currentUser.mode === 'guest' ? 3 : 5;
-
-    try {
-        if(currentDataConnection?.open) currentDataConnection.send({ type: 'reported' });
-
-        const partnerRef = doc(db, collectionName, currentPartnerDbId);
-        await updateDoc(partnerRef, { reports: increment(1) });
-
-        const snap = await getDoc(partnerRef);
-        if (snap.data().reports >= reportLimit) {
-            await updateDoc(partnerRef, { blocked: true });
-        }
-
-        hideLoader();
-        showToast("User reported successfully. Finding a new match...", "danger");
-        findMatch();
-
-    } catch (e) {
-        hideLoader();
-        console.error("Failed to report", e);
-        showToast("Failed to submit report. Please try again.", "danger");
-    }
-});
