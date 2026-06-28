@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect - Random Video Chat</title>
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div id="global-loader" class="loader-overlay hidden">
+        <div class="spinner"></div>
+        <p id="loader-text">Loading...</p>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <h1>Connect<span class="dot">.</span></h1>
+            <div id="header-user-info" class="hidden">
+                <span id="header-name"></span>
+            </div>
+        </header>
+
+        <main id="view-home" class="view active">
+            <div class="hero">
+                <h2>Meet the world, instantly.</h2>
+                <p>Join thousands of users in random 1-on-1 video chats.</p>
+                <div class="reviews">
+                    <p>⭐ "Best way to meet new people!" - Alex</p>
+                    <p>⭐ "The filters make finding friends so easy." - Sarah</p>
+                </div>
+                <button id="btn-start-app" class="action-btn pulse-btn">Start Video Chat</button>
+            </div>
+        </main>
+
+        <main id="view-auth-choice" class="view hidden">
+            <div class="card fade-in">
+                <h2>Choose how to connect</h2>
+                <button id="btn-show-login" class="action-btn">Login / Sign Up</button>
+                <div class="divider"><span>or</span></div>
+                <button id="btn-show-guest" class="action-btn secondary">Continue without Account</button>
+                <p class="warning"><i class="fas fa-info-circle"></i> Guests only match with other guests and cannot use
+                    filters.</p>
+            </div>
+        </main>
+
+        <main id="view-guest" class="view hidden">
+            <div class="card fade-in">
+                <h2>Guest Details</h2>
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="guest-name" placeholder="Unique Display Name" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-venus-mars"></i>
+                    <select id="guest-gender">
+                        <option value="any">Select Gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-globe"></i>
+                    <input type="text" id="guest-country" placeholder="Country" required autocomplete="off">
+                </div>
+                <button id="btn-start-guest" class="action-btn">Enter Chat <i class="fas fa-arrow-right"></i></button>
+                <p id="guest-error" class="error"></p>
+            </div>
+        </main>
+
+        <main id="view-chat" class="view hidden">
+            <div class="chat-header">
+                <div id="filter-container" class="hidden">
+                    <div class="input-group filter-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="chat-filter" placeholder="Keyword filter...">
+                    </div>
+                    <button id="btn-apply-filter" class="action-btn small">Apply</button>
+                </div>
+            </div>
+
+            <div class="main-content fade-in">
+                <div class="video-section">
+                    <div id="toast-container" class="toast-container"></div>
+
+                    <div class="video-wrapper remote-wrapper">
+                        <video id="remote-video" autoplay playsinline></video>
+                        <div class="status-overlay" id="remote-status">Initializing...</div>
+                        <div class="user-info-overlay hidden" id="remote-user-info"></div>
+                    </div>
+
+                    <div class="video-wrapper local-wrapper">
+                        <video id="local-video" autoplay playsinline muted></video>
+                        <div class="user-info-overlay hidden" id="local-user-info"></div>
+                    </div>
+
+                    <div class="controls">
+                        <button id="btn-mute" class="control-btn" title="Toggle Microphone"><i
+                                class="fas fa-microphone"></i></button>
+                        <button id="btn-camera" class="control-btn" title="Toggle Camera"><i
+                                class="fas fa-video"></i></button>
+                        <button id="btn-next" class="control-btn next"><i class="fas fa-step-forward"></i> Next</button>
+                        <button id="btn-report" class="control-btn warning-btn" title="Report User"><i
+                                class="fas fa-flag"></i></button>
+                        <button id="btn-leave" class="control-btn danger-btn" title="Leave Chat"><i
+                                class="fas fa-sign-out-alt"></i></button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
