@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Connect - Random Video Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+    <div id="global-loader" class="loader-overlay hidden">
+        <div class="spinner"></div>
+        <p id="loader-text">Loading...</p>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-report" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Report Stranger</h2>
+            <p>Please provide a reason. False reports may lead to penalties.</p>
+            <input type="text" id="report-reason" placeholder="E.g., Inappropriate behavior..." class="modal-input">
+    
+            <div class="tnc-group mt-2" style="justify-content: center;">
+                <input type="checkbox" id="report-include-chat" checked>
+                <label for="report-include-chat">Include Chat History</label>
+            </div>
+    
+            <button id="btn-submit-report" class="action-btn danger-btn mt-2">Submit Report</button>
+            <button id="btn-cancel-report" class="action-btn secondary mt-2">Cancel</button>
+        </div>
+    </div>
+    
+    <div id="modal-reported-warning" class="modal-overlay hidden">
+        <div class="modal-content">
+            <i class="fas fa-exclamation-triangle modal-icon text-warning"></i>
+            <h2>Warning!</h2>
+            <p>You have been reported for: <br><b id="warning-reason"></b>.</p>
+            <p class="text-muted">If this behavior continues, your access to the network will be permanently revoked.</p>
+            <div class="tnc-group">
+                <input type="checkbox" id="agree-rules">
+                <label for="agree-rules">I agree to follow the community rules.</label>
+            </div>
+            <button id="btn-agree-warning" class="action-btn mt-2">I Agree & Continue</button>
+        </div>
+    </div>
+    
+    <div id="modal-banned" class="modal-overlay hidden">
+        <div class="modal-content">
+            <i class="fas fa-ban modal-icon text-danger"></i>
+            <h2>Access Blocked</h2>
+            <p>You have been permanently banned due to multiple reports of policy violations.</p>
+    
+            <textarea id="appeal-reason" class="modal-input mt-2" placeholder="Explain why you should be unbanned..."
+                rows="3" style="width: 100%; resize: none; margin-bottom: 10px;"></textarea>
+    
+            <button id="btn-appeal-ban" class="action-btn secondary mt-2">Submit Appeal Request</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <h1>Connect<span class="dot">.</span></h1>
+        </header>
+
+        <main id="view-guest" class="view active">
+            <div class="card fade-in">
+                <h2>Your Details</h2>
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="guest-name" placeholder="Your Name" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-calendar"></i>
+                    <input type="text" id="guest-dob" placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off"
+                        required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-globe"></i>
+                    <select id="guest-country" required>
+                        <option value="">Select Region</option>
+                        <option value="North America">North America</option>
+                        <option value="South America">South America</option>
+                        <option value="Europe">Europe</option>
+                        <option value="Asia">Asia</option>
+                        <option value="Africa">Africa</option>
+                        <option value="Oceania">Oceania</option>
+                    </select>
+                </div>
+                <div class="radio-group" id="guest-gender-group">
+                    <input type="radio" id="gender-male" name="guest-gender" value="male" class="hidden-radio">
+                    <label for="gender-male" class="radio-label">♂️ Male</label>
+                    <input type="radio" id="gender-female" name="guest-gender" value="female" class="hidden-radio">
+                    <label for="gender-female" class="radio-label">♀️ Female</label>
+                    <input type="radio" id="gender-other" name="guest-gender" value="others" class="hidden-radio">
+                    <label for="gender-other" class="radio-label">⚧️ Other</label>
+                </div>
+                <div class="tnc-group">
+                    <input type="checkbox" id="guest-tnc">
+                    <label for="guest-tnc">I am 18+ and agree to the <a href="#">Terms</a>.</label>
+                </div>
+                <button id="btn-start-guest" class="action-btn">Enter Chat <i class="fas fa-arrow-right"></i></button>
+                <p id="guest-error" class="error"></p>
+            </div>
+        </main>
+
+        <main id="view-chat" class="view hidden">
+            <div class="chat-layout">
+                <div id="media-container" class="media-container">
+                    <div id="video-grid" class="video-grid">
+                        <div class="video-box remote-box">
+                            <video id="remote-video" autoplay playsinline></video>
+                            <div class="status-overlay" id="remote-status">Searching for stranger...</div>
+                            <div class="media-disabled-overlay hidden" id="remote-cam-off">
+                                <i class="fas fa-video-slash"></i>
+                                <p>Stranger turned off camera</p>
+                            </div>
+                            <div class="mic-off-indicator hidden" id="remote-mic-off">
+                                <i class="fas fa-microphone-slash"></i>
+                            </div>
+                            <div class="user-info-badge hidden" id="remote-user-info"></div>
+                        </div>
+                        <div id="local-box" class="video-box local-box">
+                            <video id="local-video" autoplay playsinline muted></video>
+                            <div class="media-disabled-overlay hidden" id="local-cam-off">
+                                <i class="fas fa-video-slash"></i>
+                                <p>Camera Off</p>
+                            </div>
+                            <div class="mic-off-indicator hidden" id="local-mic-off">
+                                <i class="fas fa-microphone-slash"></i>
+                            </div>
+                            <div class="user-info-badge hidden" id="local-user-info"></div>
+                        </div>
+                        <div id="chat-panel" class="chat-panel hidden">
+                            <div class="chat-header">
+                                <h3>Conversation</h3>
+                                <button id="btn-close-chat" class="close-btn"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div id="chat-messages" class="chat-messages"></div>
+                            <div id="typing-indicator" class="typing-indicator hidden">Stranger is typing...</div>
+                            <div class="chat-input-area">
+                                <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                                <button id="btn-send-msg" disabled><i class="fas fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-controls">
+                    <button id="btn-leave" class="control-btn danger-btn" title="Leave Chat">
+                        <i class="fas fa-sign-out-alt"></i> <span>Stop</span>
+                    </button>
+                    <div class="hardware-controls">
+                        <button id="btn-mute" class="control-btn" title="Toggle Microphone">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="btn-camera" class="control-btn" title="Toggle Camera">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="btn-toggle-chat" class="control-btn" title="Open Text Chat" disabled>
+                            <i class="fas fa-comment"></i>
+                            <span id="chat-badge" class="chat-badge hidden"></span>
+                        </button>
+                        <button id="btn-report" class="control-btn warning-btn" title="Report Stranger" disabled>
+                            <i class="fas fa-flag"></i>
+                        </button>
+                    </div>
+                    <button id="btn-next" class="control-btn primary-btn next-btn">
+                        <i class="fas fa-step-forward"></i> <span>Next</span>
+                    </button>
+                </div>
+            </div>
+            <div id="toast-container" class="toast-container"></div>
+        </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
