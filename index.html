@@ -16,38 +16,66 @@
         <p id="loader-text">Loading...</p>
     </div>
 
+    <!-- Modals -->
+    <div id="modal-report" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Report Stranger</h2>
+            <p>Please provide a reason. False reports may lead to penalties.</p>
+            <input type="text" id="report-reason" placeholder="E.g., Inappropriate behavior..." class="modal-input">
+    
+            <div class="tnc-group mt-2" style="justify-content: center;">
+                <input type="checkbox" id="report-include-chat" checked>
+                <label for="report-include-chat">Include Chat History</label>
+            </div>
+    
+            <button id="btn-submit-report" class="action-btn danger-btn mt-2">Submit Report</button>
+            <button id="btn-cancel-report" class="action-btn secondary mt-2">Cancel</button>
+        </div>
+    </div>
+    
+    <div id="modal-reported-warning" class="modal-overlay hidden">
+        <div class="modal-content">
+            <i class="fas fa-exclamation-triangle modal-icon text-warning"></i>
+            <h2>Warning!</h2>
+            <p>You have been reported for: <br><b id="warning-reason"></b>.</p>
+            <p class="text-muted">If this behavior continues, your access to the network will be permanently revoked.</p>
+            <div class="tnc-group">
+                <input type="checkbox" id="agree-rules">
+                <label for="agree-rules">I agree to follow the community rules.</label>
+            </div>
+            <button id="btn-agree-warning" class="action-btn mt-2">I Agree & Continue</button>
+        </div>
+    </div>
+    
+    <div id="modal-banned" class="modal-overlay hidden">
+        <div class="modal-content">
+            <i class="fas fa-ban modal-icon text-danger"></i>
+            <h2>Access Blocked</h2>
+            <p>You have been permanently banned due to multiple reports of policy violations.</p>
+    
+            <textarea id="appeal-reason" class="modal-input mt-2" placeholder="Explain why you should be unbanned..."
+                rows="3" style="width: 100%; resize: none; margin-bottom: 10px;"></textarea>
+    
+            <button id="btn-appeal-ban" class="action-btn secondary mt-2">Submit Appeal Request</button>
+        </div>
+    </div>
+
     <div class="app-container">
         <header>
             <h1>Connect<span class="dot">.</span></h1>
-            <div id="header-user-info" class="hidden">
-                <span id="header-name"></span>
-            </div>
         </header>
 
-        <main id="view-home" class="view active">
-            <div class="hero fade-in">
-                <h2>Meet the world, instantly.</h2>
-                <button id="btn-start-app" class="action-btn pulse-btn">Start Video Chat</button>
-            </div>
-        </main>
-
-        <main id="view-auth-choice" class="view hidden">
+        <main id="view-guest" class="view active">
             <div class="card fade-in">
-                <h2>Choose how to connect</h2>
-                <button id="btn-show-guest" class="action-btn secondary">Continue as Guest</button>
-            </div>
-        </main>
-
-        <main id="view-guest" class="view hidden">
-            <div class="card fade-in">
-                <h2>Guest Details</h2>
+                <h2>Your Details</h2>
                 <div class="input-group">
                     <i class="fas fa-user"></i>
                     <input type="text" id="guest-name" placeholder="Your Name" required autocomplete="off">
                 </div>
                 <div class="input-group">
                     <i class="fas fa-calendar"></i>
-                    <input type="date" id="guest-dob" required>
+                    <input type="text" id="guest-dob" placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off"
+                        required>
                 </div>
                 <div class="input-group">
                     <i class="fas fa-globe"></i>
@@ -61,14 +89,17 @@
                         <option value="Oceania">Oceania</option>
                     </select>
                 </div>
-                <div class="input-group">
-                    <i class="fas fa-venus-mars"></i>
-                    <select id="guest-gender">
-                        <option value="any">Select Gender</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="others">Other</option>
-                    </select>
+                <div class="radio-group" id="guest-gender-group">
+                    <input type="radio" id="gender-male" name="guest-gender" value="male" class="hidden-radio">
+                    <label for="gender-male" class="radio-label">♂️ Male</label>
+                    <input type="radio" id="gender-female" name="guest-gender" value="female" class="hidden-radio">
+                    <label for="gender-female" class="radio-label">♀️ Female</label>
+                    <input type="radio" id="gender-other" name="guest-gender" value="others" class="hidden-radio">
+                    <label for="gender-other" class="radio-label">⚧️ Other</label>
+                </div>
+                <div class="tnc-group">
+                    <input type="checkbox" id="guest-tnc">
+                    <label for="guest-tnc">I am 18+ and agree to the <a href="#">Terms</a>.</label>
                 </div>
                 <button id="btn-start-guest" class="action-btn">Enter Chat <i class="fas fa-arrow-right"></i></button>
                 <p id="guest-error" class="error"></p>
@@ -79,7 +110,6 @@
             <div class="chat-layout">
                 <div id="media-container" class="media-container">
                     <div id="video-grid" class="video-grid">
-            
                         <div class="video-box remote-box">
                             <video id="remote-video" autoplay playsinline></video>
                             <div class="status-overlay" id="remote-status">Searching for stranger...</div>
@@ -92,7 +122,6 @@
                             </div>
                             <div class="user-info-badge hidden" id="remote-user-info"></div>
                         </div>
-            
                         <div id="local-box" class="video-box local-box">
                             <video id="local-video" autoplay playsinline muted></video>
                             <div class="media-disabled-overlay hidden" id="local-cam-off">
@@ -104,7 +133,6 @@
                             </div>
                             <div class="user-info-badge hidden" id="local-user-info"></div>
                         </div>
-            
                         <div id="chat-panel" class="chat-panel hidden">
                             <div class="chat-header">
                                 <h3>Conversation</h3>
@@ -117,7 +145,6 @@
                                 <button id="btn-send-msg" disabled><i class="fas fa-paper-plane"></i></button>
                             </div>
                         </div>
-            
                     </div>
                 </div>
 
@@ -125,7 +152,6 @@
                     <button id="btn-leave" class="control-btn danger-btn" title="Leave Chat">
                         <i class="fas fa-sign-out-alt"></i> <span>Stop</span>
                     </button>
-
                     <div class="hardware-controls">
                         <button id="btn-mute" class="control-btn" title="Toggle Microphone">
                             <i class="fas fa-microphone"></i>
@@ -133,23 +159,24 @@
                         <button id="btn-camera" class="control-btn" title="Toggle Camera">
                             <i class="fas fa-video"></i>
                         </button>
-                        <button id="btn-toggle-chat" class="control-btn" title="Open Text Chat">
+                        <button id="btn-toggle-chat" class="control-btn" title="Open Text Chat" disabled>
                             <i class="fas fa-comment"></i>
                             <span id="chat-badge" class="chat-badge hidden"></span>
                         </button>
+                        <button id="btn-report" class="control-btn warning-btn" title="Report Stranger" disabled>
+                            <i class="fas fa-flag"></i>
+                        </button>
                     </div>
-
                     <button id="btn-next" class="control-btn primary-btn next-btn">
                         <i class="fas fa-step-forward"></i> <span>Next</span>
                     </button>
                 </div>
             </div>
-
             <div id="toast-container" class="toast-container"></div>
         </main>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 
 </html>
